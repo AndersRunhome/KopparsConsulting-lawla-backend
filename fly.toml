@@ -1,0 +1,41 @@
+# Fly.io – API-containern i Stockholm. `fly launch --copy-config --no-deploy` första gången,
+# sedan `fly secrets set …` (se docs/DEPLOY.md) och `fly deploy`.
+app = "lawla-backend"
+primary_region = "arn"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "8080"
+  EMBEDDINGS_URL = "https://api.deepinfra.com/v1/openai"
+  EMBEDDINGS_MODEL = "BAAI/bge-m3"
+  EMBEDDINGS_DIM = "1024"
+  RERANK_URL = "https://api.deepinfra.com/v1/inference/BAAI/bge-reranker-v2-m3"
+  RERANK_MODEL = "BAAI/bge-reranker-v2-m3"
+  LLM_PROVIDER = "anthropic"
+  LLM_MODEL = "claude-sonnet-4-5"
+  AUTH_RETURN_ORIGINS = "https://lawla.kopparsconsulting.com,https://lawla-staging.kopparsconsulting.workers.dev"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 50
+    hard_limit = 100
+
+[[http_service.checks]]
+  interval = "30s"
+  timeout = "5s"
+  grace_period = "20s"
+  method = "GET"
+  path = "/health"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

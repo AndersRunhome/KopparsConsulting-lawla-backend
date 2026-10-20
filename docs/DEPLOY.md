@@ -26,5 +26,18 @@ en engångskostnad; sökfrågor tar ~100–300 ms på CPU.
 Första användaren som registrerar sig blir admin. Ingest startas som admin med
 `POST /api/Ingest {"source":"lagen.nu","uri":"https://lagen.nu/2005:716"}` eller via `npm run ingest`.
 
+## Fly.io (steg för steg)
+```bash
+brew install flyctl && fly auth login
+fly launch --copy-config --no-deploy --name lawla-backend --region arn
+fly secrets set DATABASE_URL='postgresql://postgres.<ref>:<lösenord>@aws-0-eu-north-1.pooler.supabase.com:5432/postgres' \
+  JWT_SECRET="$(openssl rand -base64 48)" EMBEDDINGS_API_KEY='<deepinfra>' RERANK_API_KEY='<deepinfra>' ANTHROPIC_API_KEY='<anthropic>'
+fly deploy
+curl https://lawla-backend.fly.dev/health
+```
+Supabase: använd **Session pooler**-adressen (port 5432) från projektets "Connect"-dialog – direktanslutningen är bara IPv6.
+Supabase-projektet för Lawla: `qgcmoghpkirukfgfjfmv` (Stockholm). Schemat är applicerat via Supabase-migreringen `lawla_init`
+(= `0001_init.sql` + `0002_rls.sql`); RLS är på för alla tabeller så att PostgREST/anon inte kan läsa något.
+
 ## Migreringar
 Körs automatiskt vid start (`src/db/migrations/*.sql`, en gång var). Nya ändringar = ny fil med nästa nummer.
