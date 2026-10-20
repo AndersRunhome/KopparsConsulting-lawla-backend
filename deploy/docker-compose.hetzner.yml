@@ -1,0 +1,33 @@
+# Hetzner-VM: API-containern + Caddy (TLS via Let's Encrypt). Databas i Supabase, modeller via DeepInfra/Anthropic.
+# Kundens variant med allt lokalt är docker-compose.yml i repots rot.
+services:
+  api:
+    build:
+      context: ..
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      PORT: 8080
+    expose: ["8080"]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      API_DOMAIN: ${API_DOMAIN:-api.lawla.kopparsconsulting.com}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on: [api]
+
+volumes:
+  caddy-data:
+  caddy-config:

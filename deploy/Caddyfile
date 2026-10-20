@@ -1,0 +1,7 @@
+{$API_DOMAIN} {
+	encode gzip
+	reverse_proxy api:8080 {
+		flush_interval -1
+	}
+	header X-Robots-Tag "noindex"
+}

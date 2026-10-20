@@ -26,18 +26,23 @@ en engångskostnad; sökfrågor tar ~100–300 ms på CPU.
 Första användaren som registrerar sig blir admin. Ingest startas som admin med
 `POST /api/Ingest {"source":"lagen.nu","uri":"https://lagen.nu/2005:716"}` eller via `npm run ingest`.
 
-## Fly.io (steg för steg)
-```bash
-brew install flyctl && fly auth login
-fly launch --copy-config --no-deploy --name lawla-backend --region arn
-fly secrets set DATABASE_URL='postgresql://postgres.<ref>:<lösenord>@aws-0-eu-north-1.pooler.supabase.com:5432/postgres' \
-  JWT_SECRET="$(openssl rand -base64 48)" EMBEDDINGS_API_KEY='<deepinfra>' RERANK_API_KEY='<deepinfra>' ANTHROPIC_API_KEY='<anthropic>'
-fly deploy
-curl https://lawla-backend.fly.dev/health
-```
+## Hetzner (valt för Koppars drift)
+1. Hetzner Cloud → ny server: **Ubuntu 24.04**, typ **CX22** (2 vCPU/4 GB, ~4 EUR/mån), plats Helsinki, din SSH-nyckel.
+2. DNS (Cloudflare): `A api.lawla.kopparsconsulting.com → <serverns IP>`, **DNS only** (grått moln) så att Caddy kan hämta Let's Encrypt-certifikat.
+3. På servern som root:
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/AndersRunhome/KopparsConsulting-lawla-backend/main/deploy/bootstrap.sh | bash
+   nano /opt/lawla-backend/deploy/.env        # DATABASE_URL, DeepInfra-nyckel, Anthropic-nyckel
+   cd /opt/lawla-backend/deploy && docker compose -f docker-compose.hetzner.yml up -d --build
+   curl https://api.lawla.kopparsconsulting.com/health
+   ```
+4. Uppdatering senare: `/opt/lawla-backend/deploy/update.sh`. Loggar: `docker compose -f docker-compose.hetzner.yml logs -f api`.
+
 Supabase: använd **Session pooler**-adressen (port 5432) från projektets "Connect"-dialog – direktanslutningen är bara IPv6.
 Supabase-projektet för Lawla: `qgcmoghpkirukfgfjfmv` (Stockholm). Schemat är applicerat via Supabase-migreringen `lawla_init`
 (= `0001_init.sql` + `0002_rls.sql`); RLS är på för alla tabeller så att PostgREST/anon inte kan läsa något.
+
+`fly.toml` finns kvar som alternativ (Fly.io, region Stockholm).
 
 ## Migreringar
 Körs automatiskt vid start (`src/db/migrations/*.sql`, en gång var). Nya ändringar = ny fil med nästa nummer.
