@@ -1,0 +1,72 @@
+# Hela Lawla-miljön på en server. `docker compose up -d` – sedan http://localhost:8080/health.
+# Samma delar används i molnet, utpekade via miljövariabler (docs/DEPLOY.md).
+services:
+  api:
+    build: .
+    restart: unless-stopped
+    ports: ["8080:8080"]
+    environment:
+      NODE_ENV: production
+      PORT: 8080
+      DATABASE_URL: postgres://lawla:${POSTGRES_PASSWORD:-lawla}@postgres:5432/lawla
+      JWT_SECRET: ${JWT_SECRET:?Sätt JWT_SECRET i .env (minst 32 tecken)}
+      AUTH_RETURN_ORIGINS: ${AUTH_RETURN_ORIGINS:-https://lawla.kopparsconsulting.com}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
+      EMBEDDINGS_URL: http://tei-embed:80
+      EMBEDDINGS_MODEL: BAAI/bge-m3
+      EMBEDDINGS_DIM: 1024
+      RERANK_URL: http://tei-rerank:80
+      RERANK_MODEL: BAAI/bge-reranker-v2-m3
+      LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-claude-sonnet-4-5}
+      S3_ENDPOINT: http://minio:9000
+      S3_BUCKET: lawla-raw
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-lawla}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-lawla-minio-secret}
+    depends_on:
+      postgres: { condition: service_healthy }
+      tei-embed: { condition: service_started }
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: lawla
+      POSTGRES_USER: lawla
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lawla}
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lawla -d lawla"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # Embeddings (bge-m3) på CPU – räcker för ingest i bakgrunden och sökfrågor. GPU: byt image till …:latest och lägg till deploy.resources.
+  tei-embed:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.5
+    restart: unless-stopped
+    command: --model-id BAAI/bge-m3 --max-client-batch-size 64
+    volumes: ["tei-data:/data"]
+
+  tei-rerank:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.5
+    restart: unless-stopped
+    command: --model-id BAAI/bge-reranker-v2-m3
+    volumes: ["tei-data:/data"]
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-lawla}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-lawla-minio-secret}
+    volumes: ["minio-data:/data"]
+
+volumes:
+  pgdata:
+  tei-data:
+  minio-data:
